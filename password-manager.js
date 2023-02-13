@@ -167,6 +167,9 @@ class Keychain {
       name: "AES-GCM",
       "iv": iv
     } // can also pass additional data
+    console.log(hash)
+    console.log(this.data.kvs[hash])
+    console.log(typeof(this.data.kvs[hash]))
     return subtle.decrypt(params, this.secrets.encKey, this.data.kvs[hash]).then((arrayBuf) => {
       return byteArrayToString(arrayBuf)
     })
