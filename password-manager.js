@@ -98,7 +98,8 @@ class Keychain {
     let encKey = await subtle.deriveKey(pbkdf2params, rawKey, {name: "AES-GCM", length: 256}, false, ["encrypt", "decrypt"]);
     let macKey = await subtle.deriveKey(pbkdf2params, rawKey, {name: "HMAC", length: 256, hash: "SHA-256"}, false, ["sign", "verify"]);
 
-    
+    console.log(reprData)
+
     let kc = new Keychain(encKey, macKey, reprData.salt)
     kc.data = reprData
     let kcJson = JSON.stringify(kc)
@@ -166,8 +167,7 @@ class Keychain {
       name: "AES-GCM",
       "iv": iv
     } // can also pass additional data
-    console.log(this.data.kvs[hash])
-    return subtle.decrypt(params, this.secrets.encKey, this.data.kvs[hash]).then((arrayBuf) => {
+    return subtle.decrypt(params, this.secrets.encKey, Buffer.from(this.data.kvs[hash], "base64")).then((arrayBuf) => {
       return byteArrayToString(arrayBuf)
     })
   };
@@ -199,7 +199,7 @@ class Keychain {
 
     let hash = byteArrayToString(await subtle.sign("HMAC", this.secrets.macKey, name))
     let encValue = await subtle.encrypt(params, this.secrets.encKey, value)
-    this.data.kvs[hash] = new Int8Array(encValue)
+    this.data.kvs[hash] = Buffer.from(encValue).toString("base64")
   };
 
   /**
