@@ -131,7 +131,6 @@ class Keychain {
     //Is this supposed to be a hash of the checksum or a hash of the actual "keychain contents" as per proj handout
     let thisJson = JSON.stringify(this)
     let hash = byteArrayToString(await subtle.digest("SHA-256", thisJson))
-    
     return [dataJson, hash]
   };
 
@@ -167,7 +166,7 @@ class Keychain {
       name: "AES-GCM",
       "iv": iv
     } // can also pass additional data
-    return subtle.decrypt(params, this.secrets.encKey, this.data.kvs[hash].buffer).then((arrayBuf) => {
+    return subtle.decrypt(params, this.secrets.encKey, this.data.kvs[hash]).then((arrayBuf) => {
       return byteArrayToString(arrayBuf)
     })
   };
@@ -199,7 +198,7 @@ class Keychain {
 
     let hash = byteArrayToString(await subtle.sign("HMAC", this.secrets.macKey, name))
     let encValue = await subtle.encrypt(params, this.secrets.encKey, value)
-    this.data.kvs[hash] = {buffer: encValue}
+    this.data.kvs[hash] = new Int8Array(encValue)
   };
 
   /**
