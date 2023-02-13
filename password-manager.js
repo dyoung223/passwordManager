@@ -15,23 +15,24 @@ class Keychain {
    *  You may design the constructor with any parameters you would like. 
    * Return Type: void
    */
-  constructor(password) {
+  constructor(encKey, macKey, salt) {
     this.data = { 
       /* Store member variables that you intend to be public here
          (i.e. information that will not compromise security if an adversary sees) */
+      "salt": salt,
+      kvs: {},
+      version: "CS 255 Password Manager v1.0"
     };
+
     this.secrets = {
       /* Store member variables that you intend to be private here
          (information that an adversary should NOT see). */
-
-      
+      "encKey" : encKey,
+      "macKey" : macKey
     };
 
-    this.data.version = "CS 255 Password Manager v1.0";
     // Flag to indicate whether password manager is "ready" or not
     this.ready = true;
-
-    throw "Not Implemented!";
   };
 
   /** 
@@ -40,13 +41,25 @@ class Keychain {
     *
     * Arguments:
     *   password: string
-    * Return Type: void
+    * Return Type: void , KVS?
     */
   static async init(password) {
-    KVS = new Keychain(password);
     
+    //let salt = genRandomSalt();
+    let salt = "";
+    let pbkdf2params = {
+      name : "PBKDF2",
+      iterations : Keychain.PBKDF2_ITERATIONS,
+      "salt" : salt,
+      hash : "SHA-256"
+    }
 
-    throw "Not Implemented!";
+    let rawKey = await subtle.importKey("raw", password, pbkdf2params, false, ["deriveKey"]);
+    
+    let encKey = await subtle.deriveKey(pbkdf2params, rawKey, {name: "AES-GCM", length: 256}, false, ["encrypt", "decrypt"]);
+    let macKey = await subtle.deriveKey(pbkdf2params, rawKey, {name: "HMAC", length: 256, hash: "SHA-256"}, false, ["sign", "verify"]);
+
+    return new Keychain(encKey, macKey, salt);
   }
 
   /**
@@ -67,7 +80,34 @@ class Keychain {
     * Return Type: Keychain
     */
   static async load(password, repr, trustedDataCheck) {
-    throw "Not Implemented!";
+    
+    //Do you need to check for the password before any of this functionality is allowed?
+    
+    //Is this the right way of checking if the trustedDataChecksum matches the current contents
+    let reprData = JSON.parse(repr)
+
+    let pbkdf2params = {
+      name : "PBKDF2",
+      iterations : Keychain.PBKDF2_ITERATIONS,
+      "salt" : reprData.salt,
+      hash : "SHA-256"
+    }
+
+    let rawKey = await subtle.importKey("raw", password, pbkdf2params, false, ["deriveKey"]);
+    
+    let encKey = await subtle.deriveKey(pbkdf2params, rawKey, {name: "AES-GCM", length: 256}, false, ["encrypt", "decrypt"]);
+    let macKey = await subtle.deriveKey(pbkdf2params, rawKey, {name: "HMAC", length: 256, hash: "SHA-256"}, false, ["sign", "verify"]);
+
+    
+    let kc = new Keychain(encKey, macKey, reprData.salt)
+    kc["data"] = reprData
+    let kcJson = JSON.stringify(kc)
+    let hash = byteArrayToString(await subtle.digest("SHA-256", kcJson))
+    if(hash != trustedDataCheck){
+      throw "Integrity check in load has failed!!!";
+    }
+    
+    return kc
   };
 
   /**
@@ -84,7 +124,15 @@ class Keychain {
     * Return Type: array
     */ 
   async dump() {
-    throw "Not Implemented!";
+    if (!("ready" in this) || !this.ready){
+      return null
+    }
+    let dataJson = JSON.stringify(this.data)
+    //Is this supposed to be a hash of the checksum or a hash of the actual "keychain contents" as per proj handout
+    let thisJson = JSON.stringify(this)
+    let hash = byteArrayToString(await subtle.digest("SHA-256", thisJson))
+    
+    return [dataJson, hash]
   };
 
   /**
@@ -98,7 +146,30 @@ class Keychain {
     * Return Type: Promise<string>
     */
   async get(name) {
-    throw "Not Implemented!";
+    if (!("ready" in this) || !this.ready){
+      throw "Keychain not initialized.";
+    }
+    
+    let hash =  byteArrayToString(await subtle.sign("HMAC", this.secrets.macKey, name))
+
+    if (!(hash in this.data.kvs)){
+      return null
+    }
+  
+    // TODO throw if tampering detected
+
+    let iv = new ArrayBuffer(16); 
+    for (let i = 0; i < 16; i++) {
+      iv[i] = 0;
+    }
+
+    let params = {
+      name: "AES-GCM",
+      "iv": iv
+    } // can also pass additional data
+    return subtle.decrypt(params, this.secrets.encKey, this.data.kvs[hash]).then((arrayBuf) => {
+      return byteArrayToString(arrayBuf)
+    })
   };
 
   /** 
@@ -113,7 +184,22 @@ class Keychain {
   * Return Type: void
   */
   async set(name, value) {
-    throw "Not Implemented!";
+    if (!("ready" in this) || !this.ready){
+      throw "Keychain not initialized.";
+    }
+    let iv = new ArrayBuffer(16); 
+    for (let i = 0; i < 16; i++) {
+      iv[i] = 0;
+    }
+
+    let params = {
+      name: "AES-GCM",
+      "iv": iv
+    } // can also pass additional data
+
+    let hash = byteArrayToString(await subtle.sign("HMAC", this.secrets.macKey, name))
+    let encValue = await subtle.encrypt(params, this.secrets.encKey, value)
+    this.data.kvs[hash] = encValue
   };
 
   /**
@@ -126,7 +212,24 @@ class Keychain {
     * Return Type: Promise<boolean>
   */
   async remove(name) {
-    throw "Not Implemented!";
+    if (!("ready" in this) || !this.ready){
+      throw "Keychain not initialized.";
+    }
+
+    let hashPromise = subtle.sign("HMAC", this.secrets.macKey, name)
+
+    return hashPromise.then((hashArray) => 
+      {
+        let hash = byteArrayToString(hashArray)  
+        if (!(hash in this.data.kvs)){
+          // TODO is this right?
+          return false
+        }
+
+        delete this.data.kvs[hash]
+        return true
+      }
+    )
   };
 
   static get PBKDF2_ITERATIONS() { return 100000; }
