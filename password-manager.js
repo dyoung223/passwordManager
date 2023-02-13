@@ -2,7 +2,7 @@
 
 /********* External Imports ********/
 
-const { byteArrayToString, genRandomSalt, untypedToTypedArray, bufferToUntypedArray } = require("./lib");
+const { byteArrayToString, genRandomSalt, untypedToTypedArray, bufferToUntypedArray, stringToByteArray } = require("./lib");
 const { subtle } = require('crypto').webcrypto;
 
 /********* Implementation ********/
@@ -101,7 +101,6 @@ class Keychain {
     
     let kc = new Keychain(encKey, macKey, reprData.salt)
     kc.data = reprData
-    console.log(kc.data.kvs)
     let kcJson = JSON.stringify(kc)
     let hash = byteArrayToString(await subtle.digest("SHA-256", kcJson))
     if(hash != trustedDataCheck){
@@ -168,7 +167,7 @@ class Keychain {
       name: "AES-GCM",
       "iv": iv
     } // can also pass additional data
-    return subtle.decrypt(params, this.secrets.encKey, this.data.kvs[hash]).then((arrayBuf) => {
+    return subtle.decrypt(params, this.secrets.encKey, this.data.kvs[hash].buffer).then((arrayBuf) => {
       return byteArrayToString(arrayBuf)
     })
   };
@@ -200,7 +199,7 @@ class Keychain {
 
     let hash = byteArrayToString(await subtle.sign("HMAC", this.secrets.macKey, name))
     let encValue = await subtle.encrypt(params, this.secrets.encKey, value)
-    this.data.kvs[hash] = encValue
+    this.data.kvs[hash] = {buffer: encValue}
   };
 
   /**
