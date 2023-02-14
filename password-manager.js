@@ -165,7 +165,7 @@ class Keychain {
       name: "AES-GCM",
       "iv": iv
     } // can also pass additional data
-    return subtle.decrypt(params, this.secrets.encKey, Buffer.from(this.data.kvs[hash], "base64")).then((arrayBuf) => {
+    return subtle.decrypt(params, this.secrets.encKey, Buffer.from(this.data.kvs[hash], "binary")).then((arrayBuf) => {
       let padValue = byteArrayToString(arrayBuf)
       return padValue.slice(0,padValue.lastIndexOf("1"))
     })
@@ -195,11 +195,15 @@ class Keychain {
       name: "AES-GCM",
       "iv": iv
     } // can also pass additional data
-    let padValue = value + 1e63.toString()
-    padValue = padValue.slice(0,64)
+    //let padValue = value + 1e63.toString()
+    //console.log(value)
+    let padValue = value + "1"
+    padValue = padValue.padEnd(64, '0')
     let hash = byteArrayToString(await subtle.sign("HMAC", this.secrets.macKey, name))
     let encValue = await subtle.encrypt(params, this.secrets.encKey, padValue)
-    this.data.kvs[hash] = Buffer.from(encValue).toString("base64")
+    console.log(encValue)
+    this.data.kvs[hash] = Buffer.from(encValue).toString("binary")
+    console.log(this.data.kvs[hash].length)
   };
 
   /**
