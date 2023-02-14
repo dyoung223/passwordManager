@@ -46,15 +46,7 @@ class Keychain {
     * Return Type: void , KVS?
     */
   static async init(password) {
-<<<<<<< HEAD
     let salt = genRandomSalt(16);
-=======
-    //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
-    //TODO CHANGE THIS BACK TO RANDOM SALT BEFORE SUBMISSION    
-    let salt = genRandomSalt(16);
-    //let salt = "";
-    //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
->>>>>>> 833c02dc528e965ec180c048dce5f70e856dcf80
     let pbkdf2params = {
       name : "PBKDF2",
       iterations : Keychain.PBKDF2_ITERATIONS,
