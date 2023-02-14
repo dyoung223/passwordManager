@@ -47,8 +47,8 @@ class Keychain {
   static async init(password) {
     //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
     //TODO CHANGE THIS BACK TO RANDOM SALT BEFORE SUBMISSION    
-    let salt = genRandomSalt();
-    //let salt = "";
+    //let salt = genRandomSalt(16);
+    let salt = "";
     //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
     let pbkdf2params = {
       name : "PBKDF2",
@@ -84,10 +84,16 @@ class Keychain {
     */
   static async load(password, repr, trustedDataCheck) {
     
+    let hash = byteArrayToString(await subtle.digest("SHA-256", repr))
+    if(trustedDataCheck != null && hash != trustedDataCheck){ //TODO how is datacheck optional?
+      throw "Integrity check in load has failed!!!";
+    }
     //Do you need to check for the password before any of this functionality is allowed?
     
     //Is this the right way of checking if the trustedDataChecksum matches the current contents
-    let reprData = JSON.parse(repr)
+    let reprDump = JSON.parse(repr)
+    let reprData = reprDump.data
+    let tag = reprDump.tag
 
     let pbkdf2params = {
       name : "PBKDF2",
@@ -97,17 +103,18 @@ class Keychain {
     }
 
     let rawKey = await subtle.importKey("raw", password, pbkdf2params, false, ["deriveKey"]);
-    
     let encKey = await subtle.deriveKey(pbkdf2params, rawKey, {name: "AES-GCM", length: 256}, false, ["encrypt", "decrypt"]);
     let macKey = await subtle.deriveKey(pbkdf2params, rawKey, {name: "HMAC", length: 256, hash: "SHA-256"}, false, ["sign", "verify"]);
 
+    let dataJson = JSON.stringify(reprData)
+    let computedTag = byteArrayToString(await subtle.sign("HMAC", macKey, dataJson))
+
+    if (computedTag != tag){
+      throw "Integrity check in load has failed!!! against possible swap";
+    }
+    
     let kc = new Keychain(encKey, macKey, reprData.salt)
     kc.data = reprData
-    let kcJson = JSON.stringify(kc)
-    let hash = byteArrayToString(await subtle.digest("SHA-256", kcJson))
-    if(hash != trustedDataCheck){
-      throw "Integrity check in load has failed!!!";
-    }
     
     return kc
   };
@@ -130,10 +137,15 @@ class Keychain {
       return null
     }
     let dataJson = JSON.stringify(this.data)
-    //Is this supposed to be a hash of the checksum or a hash of the actual "keychain contents" as per proj handout
-    let thisJson = JSON.stringify(this)
-    let hash = byteArrayToString(await subtle.digest("SHA-256", thisJson))
-    return [dataJson, hash]
+    let tag =  byteArrayToString(await subtle.sign("HMAC", this.secrets.macKey, dataJson))
+    let dump = {
+      data: this.data,
+      "tag": tag
+    }
+    let dumpJson = JSON.stringify(dump)
+
+    let hash = byteArrayToString(await subtle.digest("SHA-256", dumpJson))
+    return [dumpJson, hash]
   };
 
   /**
@@ -187,17 +199,17 @@ class Keychain {
     }
     //---------------------------------------------------------------------------------------------------------------------------//
     // TODO Change this to randomSalt when submitting to gradescope
-    /*let iv = new ArrayBuffer(16); 
+    let iv = new ArrayBuffer(16); 
     for (let i = 0; i < 16; i++) {
       iv[i] = 0;
-    }*/
-    let iv = genRandomSalt(16)
+    }
+    //let iv = genRandomSalt(16)
     //---------------------------------------------------------------------------------------------------------------------------//
     let params = {
       name: "AES-GCM",
       "iv": iv
     } // can also pass additional data
-    //let padValue = value + 1e63.toString()
+    
     let padValue = value + "1"
     padValue = padValue.padEnd(65, '0')
     let hash = byteArrayToString(await subtle.sign("HMAC", this.secrets.macKey, name))
@@ -233,6 +245,7 @@ class Keychain {
         }
 
         delete this.data.kvs[hash]
+        delete this.data.ivs[hash]
         return true
       }
     )
