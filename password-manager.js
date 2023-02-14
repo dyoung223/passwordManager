@@ -21,6 +21,7 @@ class Keychain {
          (i.e. information that will not compromise security if an adversary sees) */
       "salt": salt,
       kvs: {},
+      ivs: {},
       version: "CS 255 Password Manager v1.0"
     };
 
@@ -44,9 +45,11 @@ class Keychain {
     * Return Type: void , KVS?
     */
   static async init(password) {
-    
+    //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
+    //TODO CHANGE THIS BACK TO RANDOM SALT BEFORE SUBMISSION    
     let salt = genRandomSalt();
     //let salt = "";
+    //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
     let pbkdf2params = {
       name : "PBKDF2",
       iterations : Keychain.PBKDF2_ITERATIONS,
@@ -155,11 +158,7 @@ class Keychain {
     }
   
     // TODO throw if tampering detected
-
-    let iv = new ArrayBuffer(16); 
-    for (let i = 0; i < 16; i++) {
-      iv[i] = 0;
-    }
+    let iv = Buffer.from(this.data.ivs[hash], "binary")
 
     let params = {
       name: "AES-GCM",
@@ -186,11 +185,14 @@ class Keychain {
     if (!("ready" in this) || !this.ready){
       throw "Keychain not initialized.";
     }
-    let iv = new ArrayBuffer(16); 
+    //---------------------------------------------------------------------------------------------------------------------------//
+    // TODO Change this to randomSalt when submitting to gradescope
+    /*let iv = new ArrayBuffer(16); 
     for (let i = 0; i < 16; i++) {
       iv[i] = 0;
-    }
-
+    }*/
+    let iv = genRandomSalt(16)
+    //---------------------------------------------------------------------------------------------------------------------------//
     let params = {
       name: "AES-GCM",
       "iv": iv
@@ -199,6 +201,9 @@ class Keychain {
     let padValue = value + "1"
     padValue = padValue.padEnd(65, '0')
     let hash = byteArrayToString(await subtle.sign("HMAC", this.secrets.macKey, name))
+
+    this.data.ivs[hash] = Buffer.from(iv).toString("binary")
+    
     let encValue = await subtle.encrypt(params, this.secrets.encKey, padValue)
     this.data.kvs[hash] = Buffer.from(encValue).toString("binary")
   };
