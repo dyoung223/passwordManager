@@ -45,8 +45,8 @@ class Keychain {
     */
   static async init(password) {
     
-    //let salt = genRandomSalt();
-    let salt = "";
+    let salt = genRandomSalt();
+    //let salt = "";
     let pbkdf2params = {
       name : "PBKDF2",
       iterations : Keychain.PBKDF2_ITERATIONS,
