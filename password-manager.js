@@ -139,6 +139,7 @@ class Keychain {
     if (!("ready" in this) || !this.ready){
       return null
     }
+    this.data.tag = ""
     let dataJson = JSON.stringify(this.data)
     let tag =  byteArrayToString(await subtle.sign("HMAC", this.secrets.macKey, dataJson))
     /*let dump = {
