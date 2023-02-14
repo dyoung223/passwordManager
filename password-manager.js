@@ -22,6 +22,7 @@ class Keychain {
       "salt": salt,
       kvs: {},
       ivs: {},
+      tag: "",
       version: "CS 255 Password Manager v1.0"
     };
 
@@ -88,12 +89,12 @@ class Keychain {
     if(trustedDataCheck != null && hash != trustedDataCheck){ //TODO how is datacheck optional?
       throw "Integrity check in load has failed!!!";
     }
-    //Do you need to check for the password before any of this functionality is allowed?
     
-    //Is this the right way of checking if the trustedDataChecksum matches the current contents
-    let reprDump = JSON.parse(repr)
-    let reprData = reprDump.data
-    let tag = reprDump.tag
+    //let reprDump = JSON.parse(repr)
+    let reprData = JSON.parse(repr) //reprDump.data
+    let tag = reprData.tag
+    reprData.tag = "" 	//temp clear tag for tag comparison
+
 
     let pbkdf2params = {
       name : "PBKDF2",
@@ -115,6 +116,8 @@ class Keychain {
     
     let kc = new Keychain(encKey, macKey, reprData.salt)
     kc.data = reprData
+    //set tag because it was previously cleared for comparison
+    kc.data.tag = tag
     
     return kc
   };
@@ -138,11 +141,14 @@ class Keychain {
     }
     let dataJson = JSON.stringify(this.data)
     let tag =  byteArrayToString(await subtle.sign("HMAC", this.secrets.macKey, dataJson))
-    let dump = {
+    /*let dump = {
       data: this.data,
       "tag": tag
-    }
-    let dumpJson = JSON.stringify(dump)
+    }*/
+    
+    //let dumpJson = JSON.stringify(dump)
+    this.data.tag = tag
+    let dumpJson = JSON.stringify(this.data)
 
     let hash = byteArrayToString(await subtle.digest("SHA-256", dumpJson))
     return [dumpJson, hash]
