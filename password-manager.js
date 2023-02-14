@@ -196,14 +196,11 @@ class Keychain {
       "iv": iv
     } // can also pass additional data
     //let padValue = value + 1e63.toString()
-    //console.log(value)
     let padValue = value + "1"
-    padValue = padValue.padEnd(64, '0')
+    padValue = padValue.padEnd(65, '0')
     let hash = byteArrayToString(await subtle.sign("HMAC", this.secrets.macKey, name))
     let encValue = await subtle.encrypt(params, this.secrets.encKey, padValue)
-    console.log(encValue)
     this.data.kvs[hash] = Buffer.from(encValue).toString("binary")
-    console.log(this.data.kvs[hash].length)
   };
 
   /**
