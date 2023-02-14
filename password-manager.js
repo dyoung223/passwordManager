@@ -46,11 +46,7 @@ class Keychain {
     * Return Type: void , KVS?
     */
   static async init(password) {
-    //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
-    //TODO CHANGE THIS BACK TO RANDOM SALT BEFORE SUBMISSION    
-    //let salt = genRandomSalt(16);
-    let salt = "";
-    //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
+    let salt = genRandomSalt(16);
     let pbkdf2params = {
       name : "PBKDF2",
       iterations : Keychain.PBKDF2_ITERATIONS,
@@ -59,7 +55,6 @@ class Keychain {
     }
 
     let rawKey = await subtle.importKey("raw", password, pbkdf2params, false, ["deriveKey"]);
-    
     let encKey = await subtle.deriveKey(pbkdf2params, rawKey, {name: "AES-GCM", length: 256}, false, ["encrypt", "decrypt"]);
     let macKey = await subtle.deriveKey(pbkdf2params, rawKey, {name: "HMAC", length: 256, hash: "SHA-256"}, false, ["sign", "verify"]);
 
@@ -86,15 +81,13 @@ class Keychain {
   static async load(password, repr, trustedDataCheck) {
     
     let hash = byteArrayToString(await subtle.digest("SHA-256", repr))
-    if(trustedDataCheck != null && hash != trustedDataCheck){ //TODO how is datacheck optional?
+    if(trustedDataCheck != null && hash != trustedDataCheck){
       throw "Integrity check in load has failed!!!";
     }
     
-    //let reprDump = JSON.parse(repr)
-    let reprData = JSON.parse(repr) //reprDump.data
+    let reprData = JSON.parse(repr)
     let tag = reprData.tag
-    reprData.tag = "" 	//temp clear tag for tag comparison
-
+    reprData.tag = "" 	//clear tag for tag computation
 
     let pbkdf2params = {
       name : "PBKDF2",
@@ -111,13 +104,11 @@ class Keychain {
     let computedTag = byteArrayToString(await subtle.sign("HMAC", macKey, dataJson))
 
     if (computedTag != tag){
-      throw "Integrity check in load has failed!!! against possible swap";
+      throw "Integrity check in load has failed!!!";
     }
     
     let kc = new Keychain(encKey, macKey, reprData.salt)
     kc.data = reprData
-    //set tag because it was previously cleared for comparison
-    kc.data.tag = tag
     
     return kc
   };
@@ -139,16 +130,13 @@ class Keychain {
     if (!("ready" in this) || !this.ready){
       return null
     }
+    this.data.tag = ""
     let dataJson = JSON.stringify(this.data)
     let tag =  byteArrayToString(await subtle.sign("HMAC", this.secrets.macKey, dataJson))
-    /*let dump = {
-      data: this.data,
-      "tag": tag
-    }*/
     
-    //let dumpJson = JSON.stringify(dump)
     this.data.tag = tag
     let dumpJson = JSON.stringify(this.data)
+    this.data.tag = ""
 
     let hash = byteArrayToString(await subtle.digest("SHA-256", dumpJson))
     return [dumpJson, hash]
@@ -175,13 +163,13 @@ class Keychain {
       return null
     }
   
-    // TODO throw if tampering detected
     let iv = Buffer.from(this.data.ivs[hash], "binary")
 
     let params = {
       name: "AES-GCM",
       "iv": iv
-    } // can also pass additional data
+    }
+
     return subtle.decrypt(params, this.secrets.encKey, Buffer.from(this.data.kvs[hash], "binary")).then((arrayBuf) => {
       let padValue = byteArrayToString(arrayBuf)
       return padValue.slice(0,padValue.lastIndexOf("1"))
@@ -203,18 +191,11 @@ class Keychain {
     if (!("ready" in this) || !this.ready){
       throw "Keychain not initialized.";
     }
-    //---------------------------------------------------------------------------------------------------------------------------//
-    // TODO Change this to randomSalt when submitting to gradescope
-    let iv = new ArrayBuffer(16); 
-    for (let i = 0; i < 16; i++) {
-      iv[i] = 0;
-    }
-    //let iv = genRandomSalt(16)
-    //---------------------------------------------------------------------------------------------------------------------------//
+    let iv = genRandomSalt(16)
     let params = {
       name: "AES-GCM",
       "iv": iv
-    } // can also pass additional data
+    } 
     
     let padValue = value + "1"
     padValue = padValue.padEnd(65, '0')
@@ -240,13 +221,10 @@ class Keychain {
       throw "Keychain not initialized.";
     }
 
-    let hashPromise = subtle.sign("HMAC", this.secrets.macKey, name)
-
-    return hashPromise.then((hashArray) => 
+    return subtle.sign("HMAC", this.secrets.macKey, name).then((hashArray) => 
       {
         let hash = byteArrayToString(hashArray)  
         if (!(hash in this.data.kvs)){
-          // TODO is this right?
           return false
         }
 
